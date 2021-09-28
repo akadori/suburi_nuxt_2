@@ -31,6 +31,7 @@ export default {
    ** Plugins to load before mounting the App
    */
   plugins: [
+    {src: "~/plugins/before.ts", mode: "server"},
     {src: "~/plugins/both.ts"}
   ],
   srcDir: "./src",

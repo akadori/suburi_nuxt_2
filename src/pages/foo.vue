@@ -3,6 +3,7 @@
   <!-- <h1>{{header}}</h1> -->
   <p>FOO</p>
   <p>token {{ token }}</p>
+  <p>data {{ data }}</p>
   <nuxt-link to="/">top</nuxt-link>
 </div>
 </template>
@@ -10,13 +11,13 @@
 
 <script lang="ts">
 import {defineComponent} from "@nuxtjs/composition-api"
-import { useSharedState } from "../composables/shared"
+import { useShared } from "../composables/shared"
 
 export default defineComponent({
   setup(){
-    const {token} = useSharedState()
+    const {token, data} = useShared()
     return {
-      token
+      token, data
     }
   }
 })
