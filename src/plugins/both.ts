@@ -1,33 +1,60 @@
-// import { Plugin } from "@nuxt/types"
+import { onGlobalSetup, provide, defineNuxtPlugin } from "@nuxtjs/composition-api"
+import rs from "jsrsasign"
+import { NuxtAxiosInstance } from "@nuxtjs/axios"
+import { XAmazonOidcDataKey, xAmazonOidcAccessTokenKey } from "../composables/shared"
+interface IncomingHttpHeaders {
+    "x-amzn-oidc-data": string
+    "x-amzn-oidc-accesstoken": string
+}
+/**
+ * ALBが追加したRequest Headerからアクセストークンとユーザークレームを取り出し、
+ * global stateに追加する。
+ * なお、ALBからの送信であることを検証するため、署名の検証も行う。
+ */
+export default defineNuxtPlugin(async (ctx) => {
+    if (process.server) {
+        let { "x-amzn-oidc-data": xAmazonOidcData, "x-amzn-oidc-accesstoken": xAmazonOidcAccessToken } = ctx.req.headers
+        xAmazonOidcAccessToken = "dummy"
+        xAmazonOidcData =
+            "eyJ0eXAiOiJKV1QiLCJraWQiOiJkZjhlMjRjOC0xODk0LTRmODgtYjBhNS0yMDc4ODIzMDU4YzciLCJhbGciOiJFUzI1NiIsImlzcyI6Imh0dHBzOi8vYWNjb3VudHMuZ29vZ2xlLmNvbSIsImNsaWVudCI6IjI4MzU4Nzk4Mzg0Ni1qZ2Zic2QwMGw1amp0NDdsdWEwYXZubXBmcGxubmM3bC5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsInNpZ25lciI6ImFybjphd3M6ZWxhc3RpY2xvYWRiYWxhbmNpbmc6YXAtbm9ydGhlYXN0LTE6NDEzODE1NTgwNjYxOmxvYWRiYWxhbmNlci9hcHAvZW5kcG9pbnQtdGFtYXJpdGFtYXJpLWNsaWNrL2NjYmQ1ZjhhNGEzZWJiNGYiLCJleHAiOjE2MzI3NDkyNDN9.eyJzdWIiOiIxMDI2MjAwMjg3MDA4MjI2NTM4MzYiLCJwaWN0dXJlIjoiaHR0cHM6Ly9saDMuZ29vZ2xldXNlcmNvbnRlbnQuY29tL2EvZGVmYXVsdC11c2VyPXM5Ni1jIiwiZXhwIjoxNjMyNzQ5MjQzLCJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20ifQ==.RSzQbq4XV5-DCgw53BLx6AFnRjdgI41L6FoykrRvXiWBbJ1a0kgEaKs27QfPMKzD-qAPdmElFv-YcqlgRfrKkA=="
 
-// const plugin: Plugin = (context, inject) => {
-// }
+        const isTokenValid = await verifyToken(xAmazonOidcData, ctx.$axios)
 
-// export default plugin
+        if (!isTokenValid) {
+            throw new Error("失敗")
+        }
 
-import { onGlobalSetup, provide, defineNuxtPlugin } from '@nuxtjs/composition-api'
-
-export default defineNuxtPlugin((ctx, inject) => {
-  if(process.server) {
-    console.log('ctx.req.headers :>> ', ctx.req.headers);
-    // const {req, nuxtState} = ctx
-    // nuxtState.headers = req.headers
-    const {beforeNuxtRender} = ctx
-    beforeNuxtRender(({Components, nuxtState}) => {
-      nuxtState.headers = ctx.req.headers
-    })
-    onGlobalSetup(() => {
-      console.log("ONGLOBALSETUP");
-      provide('globalKey', true)
-      provide("accessToken", ctx.req.headers)
-    })
-  }else{
-    const {nuxtState} = ctx
-    console.log('nuxtState :>> ', nuxtState);
-    onGlobalSetup(() => {
-      console.log("ONGLOBALSETUP CLIENT");
-      provide('globalKey', true)
-      provide("accessToken", nuxtState.headers)
-    }) 
-  }
+        ctx.beforeNuxtRender(({ nuxtState }) => {
+            nuxtState.xAmazonOidcData = xAmazonOidcData
+            nuxtState.xAmazonOidcAccessToken = xAmazonOidcAccessToken
+        })
+        onGlobalSetup(() => {
+            provide(XAmazonOidcDataKey, xAmazonOidcData)
+            provide(xAmazonOidcAccessTokenKey, xAmazonOidcAccessToken)
+        })
+    } else {
+        onGlobalSetup(() => {
+            provide(XAmazonOidcDataKey, ctx.nuxtState.xAmazonOidcData)
+            provide(xAmazonOidcAccessTokenKey, ctx.nuxtState.xAmazonOidcAccessToken)
+        })
+    }
 })
+
+const verifyToken = async (token: string, axios: NuxtAxiosInstance) => {
+    try {
+        const decodedJwt = rs.KJUR.jws.JWS.parse(token) as rs.KJUR.jws.JWS.JWSResult & { headerObj: { kid: string } }
+        const kid = decodedJwt.headerObj.kid
+        // ```
+        // クレームに基づいて認証を行う前に、署名を検証することもお勧めします。
+        // パブリックキーを取得するには、JWT ヘッダーからキー ID を取得し、それを使用して次のリージョンエンドポイントからパブリックキーを検索します。
+        // > https://public-keys.auth.elb.region.amazonaws.com/key-id
+        // ```
+        // https://docs.aws.amazon.com/ja_jp/elasticloadbalancing/latest/application/listener-authenticate-users.html
+        const pubKey = await axios.$get<string>(`https://public-keys.auth.elb.ap-northeast-1.amazonaws.com/${kid}`)
+        const isValid = rs.KJUR.jws.JWS.verify(token, pubKey as any as string, ["ES256"])
+        return isValid
+    } catch (e) {
+        console.error(e)
+        throw new Error("認証が取得できませんでした。")
+    }
+}
