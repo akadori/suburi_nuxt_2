@@ -14,8 +14,7 @@ interface IncomingHttpHeaders {
 export default defineNuxtPlugin(async (ctx) => {
     if (process.server) {
         let { "x-amzn-oidc-data": xAmazonOidcData, "x-amzn-oidc-accesstoken": xAmazonOidcAccessToken } = ctx.req.headers as typeof ctx.req.headers & IncomingHttpHeaders
-        console.log('xAmazonOidcData :>> ', xAmazonOidcData);
-        console.log('xAmazonOidcAccessToken :>> ', xAmazonOidcAccessToken);
+        xAmazonOidcData="eyJ0eXAiOiJKV1QiLCJraWQiOiJkZjhlMjRjOC0xODk0LTRmODgtYjBhNS0yMDc4ODIzMDU4YzciLCJhbGciOiJFUzI1NiIsImlzcyI6Imh0dHBzOi8vYWNjb3VudHMuZ29vZ2xlLmNvbSIsImNsaWVudCI6IjI4MzU4Nzk4Mzg0Ni1qZ2Zic2QwMGw1amp0NDdsdWEwYXZubXBmcGxubmM3bC5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsInNpZ25lciI6ImFybjphd3M6ZWxhc3RpY2xvYWRiYWxhbmNpbmc6YXAtbm9ydGhlYXN0LTE6NDEzODE1NTgwNjYxOmxvYWRiYWxhbmNlci9hcHAvZW5kcG9pbnQtdGFtYXJpdGFtYXJpLWNsaWNrL2NjYmQ1ZjhhNGEzZWJiNGYiLCJleHAiOjE2MzI4MzkyOTh9.eyJzdWIiOiIxMTU3MzQyNjk0NzE2ODY1NzQ1NzgiLCJwaWN0dXJlIjoiaHR0cHM6Ly9saDMuZ29vZ2xldXNlcmNvbnRlbnQuY29tL2EtL0FPaDE0R2lDMGJLUUJ0aHM4TEFkZzZhZ2F2MGxhVzdMS05TSVp0RnAteC1FVWZZPXM5Ni1jIiwiZXhwIjoxNjMyODM5Mjk4LCJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20ifQ==._k6JN40GxBT3zKJeoAH9wudjpJFS-4DylfhpgdfBcTD6rwC5V9yh9SyppiCZYKJRsXjM5OpObRyP6VHTvuuRKQ=="
         const isTokenValid = await verifyToken(xAmazonOidcData, ctx.$axios)
 
         if (!isTokenValid) {
